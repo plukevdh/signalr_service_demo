@@ -29,9 +29,11 @@ namespace HubCollector
             statusHubProxy.On("updateStatus",
                 status =>
                 {
-                    //Console.WriteLine("Status: {0}, Total: {1}", status.synchronizationState, status.totalPackages);
                     EventLog.WriteEntry("Message from SignalR received.");
-                    EventLog.WriteEntry("Status: {0}, Total: {1}", status.synchronizationState, status.totalPackages);
+                    
+                    var message = String.Format("Status: {0}, Total: {1}", status.synchronizationState, status.totalPackages);
+                    EventLog.WriteEntry(message);
+
                     StatsdClient.LogGauge("nuget.rai.packageCount", (int)status.totalPackages);
                 }
             );
