@@ -12,7 +12,7 @@ namespace HubCollectorTest
         static void Main(string[] args)
         {
             var ls = new ListenerService();
-            ls.StartListener();
+            ls.StartListeners();
 
             Console.ReadKey();
         }

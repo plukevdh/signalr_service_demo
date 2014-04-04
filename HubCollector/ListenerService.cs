@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Configuration;
 using System.Diagnostics;
 using System.Net.NetworkInformation;
 using System.ServiceProcess;
@@ -9,7 +11,7 @@ namespace HubCollector
 {
     public partial class ListenerService : ServiceBase
     {
-        public HubConnection KlondikeConnection;
+        public List<HubConnection>KlondikeConnections;
         public Statsd StatsdClient;
 
         public ListenerService()
@@ -18,44 +20,51 @@ namespace HubCollector
             
             // ReSharper disable once DoNotCallOverridableMethodsInConstructor
             EventLog.Log = "HubCollectorLog";
-            StatsdClient = new Statsd("v1113.bfgdev.inside", 8125);
+            StatsdClient = new Statsd(Config.Hostname, Config.Port);
+            KlondikeConnections = new List<HubConnection>();
 
-            KlondikeConnection = new HubConnection("https://nuget-rai.bfgdev.com/api/signalr")
+            Config.Hubs.ForEach(hub =>
             {
-                TraceLevel = TraceLevels.All
-            };
+                var connection = new HubConnection(hub);
 
-            IHubProxy statusHubProxy = KlondikeConnection.CreateHubProxy("status");
-            statusHubProxy.On("updateStatus",
-                status =>
+
+                IHubProxy statusHubProxy = connection.CreateHubProxy("status");
+                statusHubProxy.On("updateStatus", status =>
                 {
-                    EventLog.WriteEntry("Message from SignalR received.");
-                    
-                    var message = String.Format("Status: {0}, Total: {1}", status.synchronizationState, status.totalPackages);
+                    string name = Config.NameFromUrl(connection.Url);
+                    var message = String.Format("From {2}: Status: {0}, Total: {1}", status.synchronizationState,
+                        status.totalPackages, name);
                     EventLog.WriteEntry(message);
+                    Console.WriteLine(message);
 
-                    StatsdClient.LogGauge("nuget.rai.packageCount", (int)status.totalPackages);
-                }
-            );
+                    StatsdClient.LogGauge("nuget."+ name +".packageCount", (int) status.totalPackages);
+                });
 
+                KlondikeConnections.Add(connection);
+            });
         }
 
         protected override void OnStart(string[] args)
         {
-            StartListener();
+            StartListeners();
             EventLog.WriteEntry("The service was started successfully.", EventLogEntryType.Information);
         }
 
-        public async void StartListener()
+        public void StartListeners()
         {
-            EventLog.WriteEntry("Starting connection to Klondike...");
-            await KlondikeConnection.Start();
+            KlondikeConnections.ForEach(StartListener);
+        }
+
+        public async void StartListener(HubConnection conn)
+        {
+            EventLog.WriteEntry("Starting connection to " + conn.Url + "...");
+            await conn.Start();
         }
 
         protected override void OnStop()
         {
-            EventLog.WriteEntry("Stopping connection to Klondike...");
-            KlondikeConnection.Stop();
+            EventLog.WriteEntry("Stopping connections to Klondike...");
+            KlondikeConnections.ForEach(conn => conn.Stop());
             EventLog.WriteEntry("The service was stopped successfully.", EventLogEntryType.Information);
         }
 
