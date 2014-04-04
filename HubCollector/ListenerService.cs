@@ -27,7 +27,6 @@ namespace HubCollector
             {
                 var connection = new HubConnection(hub);
 
-
                 IHubProxy statusHubProxy = connection.CreateHubProxy("status");
                 statusHubProxy.On("updateStatus", status =>
                 {
@@ -35,7 +34,7 @@ namespace HubCollector
                     var message = String.Format("From {2}: Status: {0}, Total: {1}", status.synchronizationState,
                         status.totalPackages, name);
                     EventLog.WriteEntry(message);
-                    Console.WriteLine(message);
+                    //Console.WriteLine(message);
 
                     StatsdClient.LogGauge("nuget."+ name +".packageCount", (int) status.totalPackages);
                 });
